@@ -1,4 +1,8 @@
 package pl.logistic.logisticops.enums;
 
-public class MissionStatus {
+public enum MissionStatus {
+    PLANNED,
+    ACTIVE,
+    COMPLETED,
+    CANCELLED
 }

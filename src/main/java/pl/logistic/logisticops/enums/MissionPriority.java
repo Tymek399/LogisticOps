@@ -1,4 +1,8 @@
 package pl.logistic.logisticops.enums;
 
-public class MissionPriority {
+public enum MissionPriority {
+    LOW,
+    MEDIUM,
+    HIGH,
+    CRITICAL
 }

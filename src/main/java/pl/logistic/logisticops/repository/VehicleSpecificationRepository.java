@@ -1,10 +1,17 @@
-package pl.logistic.logisticops.reposiotry;
+package pl.logistic.logisticops.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 import pl.logistic.logisticops.Model.VehicleSpecification;
 
-@Repository
+import java.util.List;
+
 public interface VehicleSpecificationRepository extends JpaRepository<VehicleSpecification, Long> {
-    // Możesz dodać metody wyszukiwania jeśli potrzebujesz, np. findByType itp.
+    
+    List<VehicleSpecification> findByType(String type);
+    
+    List<VehicleSpecification> findByModelContaining(String model);
+    
+    List<VehicleSpecification> findByTotalWeightKgLessThan(Integer weight);
+    
+    List<VehicleSpecification> findByHeightCmLessThan(Integer height);
 }

@@ -3,7 +3,7 @@ package pl.logistic.logisticops.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import pl.logistic.logisticops.Model.Obstacle;
+import pl.logistic.logisticops.Model.Infrastructure;
 import pl.logistic.logisticops.Model.RouteProposal;
 import pl.logistic.logisticops.Model.RouteSegment;
 import pl.logistic.logisticops.Model.VehicleSpecification;
@@ -84,14 +84,14 @@ public class RouteService {
                 startLat, startLon, endLat, endLon, maxHeight, maxAxleLoad);
         
         // Pobierz przeszkody na trasie
-        List<Obstacle> obstacles = findObstaclesOnRoute(
+        List<Infrastructure> infrastructures = findObstaclesOnRoute(
                 optimalRouteSegments, maxHeight, maxAxleLoad, totalWeight);
         
         // Utworzenie propozycji tras
         RouteProposal optimalRoute = RouteProposal.builder()
                 .missionId(missionId)
                 .segments(optimalRouteSegments)
-                .obstacles(obstacles)
+                .infrastructures(infrastructures)
                 .approved(false)
                 .generatedAt(LocalDateTime.now())
                 .build();
@@ -99,7 +99,7 @@ public class RouteService {
         RouteProposal safeRoute = RouteProposal.builder()
                 .missionId(missionId)
                 .segments(safeRouteSegments)
-                .obstacles(new ArrayList<>())
+                .infrastructures(new ArrayList<>())
                 .approved(false)
                 .generatedAt(LocalDateTime.now())
                 .build();
@@ -107,7 +107,7 @@ public class RouteService {
         RouteProposal alternativeRoute = RouteProposal.builder()
                 .missionId(missionId)
                 .segments(alternativeRouteSegments)
-                .obstacles(new ArrayList<>())
+                .infrastructures(new ArrayList<>())
                 .approved(false)
                 .generatedAt(LocalDateTime.now())
                 .build();
@@ -125,7 +125,7 @@ public class RouteService {
     /**
      * Znajduje przeszkody na trasie (mosty, tunele itp.)
      */
-    private List<Obstacle> findObstaclesOnRoute(
+    private List<Infrastructure> findObstaclesOnRoute(
             List<RouteSegment> segments, int maxHeight, int maxAxleLoad, int totalWeight) {
         
         // Tutaj powinna być implementacja do wykrywania przeszkód na trasie
