@@ -24,8 +24,8 @@ spring:
 
 logging:
   level:
-    pl.logistic.logisticops: DEBUG
-    org.springframework.security: DEBUG
+    pl.logistic.logisticops: INFO
+    org.springframework.security: WARN
     liquibase: INFO
 
 management:
@@ -34,20 +34,141 @@ management:
       exposure:
         include: health,info,metrics
 
+# ===================================
+# ? STRATEGIA 3-POZIOMOWA API
+# ===================================
+
 api:
+  # ? POZIOM 1: Google Maps (g?ówne mapowanie tras)
+  googlemaps:
+    key: ${GOOGLE_MAPS_API_KEY:YOUR_GOOGLE_MAPS_API_KEY}
+    url: https://maps.googleapis.com/maps/api
+
+  # ? POZIOM 1: TomTom (ruch + infrastruktura)
   tomtom:
-    key: w6LQqpqeOt0ITFzFHbeOzUjOqnN8alPu
+    key: ${TOMTOM_API_KEY:w6LQqpqeOt0ITFzFHbeOzUjOqnN8alPu}
     url: https://api.tomtom.com
 
+  # ? POZIOM 3: HERE Maps (commercial backup)
+  here:
+    api-key: ${HERE_API_KEY:}
+    base-url: https://discover.search.hereapi.com/v1
+
+# ===================================
+# ?? KONFIGURACJA APLIKACJI
+# ===================================
+
 app:
-  google:
-    maps:
-      api-key: ${GOOGLE_MAPS_API_KEY:YOUR_API_KEY_HERE}
-      base-url: https://maps.googleapis.com/maps/api
-
-  gddkia:
-    api:
-      base-url: https://api.gddkia.gov.pl
-
+  # CORS dla React frontend
   cors:
-    allowed-origins: "http://localhost:3000,http://localhost:3001"
+    allowed-origins:
+      - "http://localhost:3000"
+      - "http://localhost:3001"
+      - "https://your-frontend-domain.com"
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - PATCH
+      - OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+
+  # Synchronizacja infrastruktury
+  sync:
+    infrastructure:
+      enabled: true
+      interval-hours: 6
+      sources:
+        openstreetmap: true    # ? G?ówne ?ród?o
+        geoportal: true        # ? Weryfikacja
+        here: false            # ? Tylko je?li masz klucz
+
+  # Limity systemu
+  limits:
+    max-route-alternatives: 3
+    max-waypoints-per-route: 10
+    tracking-history-days: 30
+
+  # Parametry tras
+  routing:
+    default-vehicle-speed-kmh: 60
+    safety-margin-percent: 15
+    max-detour-percent: 50
+
+  # Parametry ogranicze? (dla transportów wojskowych)
+  restrictions:
+    critical-height-cm: 400     # Poni?ej tej wysoko?ci = ALERT
+    critical-weight-kg: 45000   # Powy?ej tej wagi = sprawd? mosty
+    critical-axle-kg: 12000     # Powy?ej tego = sprawd? ograniczenia osi
+
+# ===================================
+# ? WEBSOCKET REAL-TIME
+# ===================================
+
+websocket:
+  endpoints:
+    transport-tracking: "/topic/transport/{transportId}/tracking"
+    infrastructure-alerts: "/topic/infrastructure/alerts"
+    route-updates: "/topic/routes/updates"
+
+  intervals:
+    position-update-ms: 5000
+    alert-check-ms: 30000
+    infrastructure-sync-ms: 300000
+
+# ===================================
+# ? PROFILE DEVELOPMENT
+# ===================================
+
+---
+spring:
+  config:
+    activate:
+      on-profile: development
+
+api:
+  googlemaps:
+    key: "DEVELOPMENT_KEY"
+  tomtom:
+    key: "DEVELOPMENT_KEY"
+  here:
+    api-key: ""
+
+app:
+  sync:
+    infrastructure:
+      interval-hours: 1  # Cz?stsze w dev
+
+logging:
+  level:
+    pl.logistic.logisticops: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+
+  jpa:
+    hibernate:
+      ddl-auto: validate  # W produkcji tylko walidacja
+
+api:
+  googlemaps:
+    key: ${GOOGLE_MAPS_API_KEY}
+  tomtom:
+    key: ${TOMTOM_API_KEY}
+  here:
+    api-key: ${HERE_API_KEY}
+
+app:
+  sync:
+    infrastructure:
+      interval-hours: 12  # Rzadziej w produkcji
+
+logging:
+  level:
+    root: WARN
+    pl.logistic.logisticops: INFO
