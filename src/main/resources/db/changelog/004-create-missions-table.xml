@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd">
+
+    <changeSet id="004-create-missions-table" author="system">
+        <createTable tableName="missions">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="status" type="VARCHAR(30)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="priority" type="VARCHAR(20)"/>
+            <column name="start_location" type="VARCHAR(200)"/>
+            <column name="end_location" type="VARCHAR(200)"/>
+            <column name="start_latitude" type="DOUBLE"/>
+            <column name="start_longitude" type="DOUBLE"/>
+            <column name="end_latitude" type="DOUBLE"/>
+            <column name="end_longitude" type="DOUBLE"/>
+            <column name="start_date" type="TIMESTAMP"/>
+            <column name="end_date" type="TIMESTAMP"/>
+            <column name="planned_start_time" type="TIMESTAMP"/>
+            <column name="planned_end_time" type="TIMESTAMP"/>
+            <column name="actual_start_time" type="TIMESTAMP"/>
+            <column name="actual_end_time" type="TIMESTAMP"/>
+            <column name="created_by_user_id" type="BIGINT">
+                <constraints foreignKeyName="fk_mission_created_by" references="users(id)"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

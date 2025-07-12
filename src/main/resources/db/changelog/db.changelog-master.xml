@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd">
+
+    <include file="db/changelog/001-create-users-table.xml"/>
+    <include file="db/changelog/002-create-vehicle-specifications-table.xml"/>
+    <include file="db/changelog/003-create-infrastructure-table.xml"/>
+    <include file="db/changelog/004-create-missions-table.xml"/>
+    <include file="db/changelog/005-create-route-proposals-table.xml"/>
+    <include file="db/changelog/006-create-route-segments-table.xml"/>
+    <include file="db/changelog/007-create-transports-table.xml"/>
+    <include file="db/changelog/008-create-transport-vehicles-table.xml"/>
+    <include file="db/changelog/009-create-vehicle-tracking-table.xml"/>
+    <include file="db/changelog/010-create-route-obstacles-table.xml"/>
+    <include file="db/changelog/011-create-alerts-table.xml"/>
+    <include file="db/changelog/012-add-indexes.xml"/>
+    <include file="db/changelog/013-seed-data.xml"/>
+
+</databaseChangeLog>

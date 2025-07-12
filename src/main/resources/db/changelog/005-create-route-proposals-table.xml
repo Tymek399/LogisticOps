@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd">
+
+    <changeSet id="005-create-route-proposals-table" author="system">
+        <createTable tableName="route_proposals">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="mission_id" type="BIGINT">
+                <constraints foreignKeyName="fk_route_proposal_mission" references="missions(id)"/>
+            </column>
+            <column name="route_type" type="VARCHAR(20)"/>
+            <column name="total_distance_km" type="DOUBLE"/>
+            <column name="estimated_time_minutes" type="DOUBLE"/>
+            <column name="fuel_consumption_liters" type="DOUBLE"/>
+            <column name="approved" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="generated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

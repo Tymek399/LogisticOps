@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd">
+
+    <changeSet id="012-add-indexes" author="system">
+        <!-- Infrastructure indexes -->
+        <createIndex tableName="infrastructure" indexName="idx_infrastructure_type">
+            <column name="type"/>
+        </createIndex>
+        <createIndex tableName="infrastructure" indexName="idx_infrastructure_active">
+            <column name="is_active"/>
+        </createIndex>
+        <createIndex tableName="infrastructure" indexName="idx_infrastructure_location">
+            <column name="latitude"/>
+            <column name="longitude"/>
+        </createIndex>
+
+        <!-- Transport indexes -->
+        <createIndex tableName="transports" indexName="idx_transport_status">
+            <column name="status"/>
+        </createIndex>
+        <createIndex tableName="transports" indexName="idx_transport_mission">
+            <column name="mission_id"/>
+        </createIndex>
+
+        <!-- Vehicle tracking indexes -->
+        <createIndex tableName="vehicle_tracking" indexName="idx_tracking_transport">
+            <column name="transport_id"/>
+        </createIndex>
+        <createIndex tableName="vehicle_tracking" indexName="idx_tracking_vehicle">
+            <column name="vehicle_id"/>
+        </createIndex>
+        <createIndex tableName="vehicle_tracking" indexName="idx_tracking_time">
+            <column name="recorded_at"/>
+        </createIndex>
+
+        <!-- Route segments indexes -->
+        <createIndex tableName="route_segments" indexName="idx_route_segment_proposal">
+            <column name="route_proposal_id"/>
+            <column name="sequence_order"/>
+        </createIndex>
+
+        <!-- Alerts indexes -->
+        <createIndex tableName="alerts" indexName="idx_alert_timestamp">
+            <column name="timestamp"/>
+        </createIndex>
+        <createIndex tableName="alerts" indexName="idx_alert_resolved">
+            <column name="resolved"/>
+        </createIndex>
+        <createIndex tableName="alerts" indexName="idx_alert_level">
+            <column name="level"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

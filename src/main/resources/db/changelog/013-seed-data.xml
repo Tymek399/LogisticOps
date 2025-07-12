@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd">
+
+    <changeSet id="013-seed-initial-data" author="system">
+        <!-- Sample users -->
+        <insert tableName="users">
+            <column name="username" value="admin"/>
+            <column name="password" value="$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDi"/> <!-- password: admin123 -->
+            <column name="email" value="admin@logistic.mil.pl"/>
+            <column name="role" value="ADMIN"/>
+            <column name="first_name" value="System"/>
+            <column name="last_name" value="Administrator"/>
+            <column name="active" value="true"/>
+        </insert>
+
+        <insert tableName="users">
+            <column name="username" value="operator"/>
+            <column name="password" value="$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDi"/> <!-- password: admin123 -->
+            <column name="email" value="operator@logistic.mil.pl"/>
+            <column name="role" value="OPERATOR"/>
+            <column name="first_name" value="Jan"/>
+            <column name="last_name" value="Operator"/>
+            <column name="active" value="true"/>
+        </insert>
+
+        <!-- Sample vehicle specifications -->
+        <insert tableName="vehicle_specifications">
+            <column name="model" value="MAN TGS 18.440"/>
+            <column name="type" value="TRANSPORTER"/>
+            <column name="total_weight_kg" value="12000"/>
+            <column name="axle_count" value="3"/>
+            <column name="max_axle_load_kg" value="6000"/>
+            <column name="height_cm" value="350"/>
+            <column name="length_cm" value="700"/>
+            <column name="width_cm" value="250"/>
+            <column name="description" value="Ciężarówka transportowa używana w wojsku polskim"/>
+            <column name="active" value="true"/>
+        </insert>
+
+        <insert tableName="vehicle_specifications">
+            <column name="model" value="PT-91 Twardy"/>
+            <column name="type" value="TANK"/>
+            <column name="total_weight_kg" value="45000"/>
+            <column name="axle_count" value="7"/>
+            <column name="max_axle_load_kg" value="8000"/>
+            <column name="height_cm" value="320"/>
+            <column name="length_cm" value="700"/>
+            <column name="width_cm" value="350"/>
+            <column name="description" value="Polski czołg podstawowy"/>
+            <column name="active" value="true"/>
+        </insert>
+
+        <insert tableName="vehicle_specifications">
+            <column name="model" value="Rosomak"/>
+            <column name="type" value="ARMORED_PERSONNEL_CARRIER"/>
+            <column name="total_weight_kg" value="24000"/>
+            <column name="axle_count" value="6"/>
+            <column name="max_axle_load_kg" value="7000"/>
+            <column name="height_cm" value="300"/>
+            <column name="length_cm" value="700"/>
+            <column name="width_cm" value="280"/>
+            <column name="description" value="Wielozadaniowy transporter opancerzony"/>
+            <column name="active" value="true"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

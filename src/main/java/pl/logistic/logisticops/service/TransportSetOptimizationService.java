@@ -2,9 +2,10 @@ package pl.logistic.logisticops.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import pl.logistic.logisticops.Model.*;
+import pl.logistic.logisticops.model.*;
 import pl.logistic.logisticops.repository.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service

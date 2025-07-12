@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd">
+
+    <changeSet id="011-create-alerts-table" author="system">
+        <createTable tableName="alerts">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="message" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="level" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="type" type="VARCHAR(50)"/>
+            <column name="related_transport_id" type="BIGINT">
+                <constraints foreignKeyName="fk_alert_transport" references="transports(id)"/>
+            </column>
+            <column name="related_infrastructure_id" type="BIGINT">
+                <constraints foreignKeyName="fk_alert_infrastructure" references="infrastructure(id)"/>
+            </column>
+            <column name="resolved" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="timestamp" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="resolved_at" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

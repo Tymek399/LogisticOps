@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd">
+
+    <changeSet id="010-create-route-obstacles-table" author="system">
+        <createTable tableName="route_obstacles">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="route_proposal_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_route_obstacle_proposal" references="route_proposals(id)"/>
+            </column>
+            <column name="infrastructure_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_route_obstacle_infrastructure" references="infrastructure(id)"/>
+            </column>
+            <column name="can_pass" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="restriction_type" type="VARCHAR(30)"/>
+            <column name="alternative_route_needed" type="BOOLEAN" defaultValueBoolean="false"/>
+            <column name="notes" type="TEXT"/>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

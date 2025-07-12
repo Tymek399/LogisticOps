@@ -1,0 +1,53 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/logistic_ops
+    username: logistic_user
+    password: logistic_pass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+  security:
+    user:
+      name: admin
+      password: admin123
+
+logging:
+  level:
+    pl.logistic.logisticops: DEBUG
+    org.springframework.security: DEBUG
+    liquibase: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+api:
+  tomtom:
+    key: w6LQqpqeOt0ITFzFHbeOzUjOqnN8alPu
+    url: https://api.tomtom.com
+
+app:
+  google:
+    maps:
+      api-key: ${GOOGLE_MAPS_API_KEY:YOUR_API_KEY_HERE}
+      base-url: https://maps.googleapis.com/maps/api
+
+  gddkia:
+    api:
+      base-url: https://api.gddkia.gov.pl
+
+  cors:
+    allowed-origins: "http://localhost:3000,http://localhost:3001"

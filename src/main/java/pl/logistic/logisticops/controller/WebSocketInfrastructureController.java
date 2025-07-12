@@ -5,7 +5,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-import pl.logistic.logisticops.Model.Infrastructure;
+import pl.logistic.logisticops.model.Infrastructure;
 import pl.logistic.logisticops.repository.InfrastructureRepository;
 import pl.logistic.logisticops.service.RealTimeInfrastructureService;
 
