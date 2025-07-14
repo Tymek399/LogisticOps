@@ -28,16 +28,17 @@ public class PolishInfrastructureService {
     private final InfrastructureRepository infrastructureRepository;
     private final RestTemplate restTemplate;
 
-    @Value("${api.here.api-key:}")
-    private String hereApiKey;
+    @Value("${api.googlemaps.key}")
+    private String googleMapsApiKey;
 
     /**
-     * 🎯 STRATEGIA 3-POZIOMOWA:
+     * 🎯 STRATEGIA 2-POZIOMOWA (TYLKO DOSTĘPNE API):
      *
      * 1. 🥇 OpenStreetMap Overpass API (GŁÓWNE ŹRÓDŁO - darmowe, najlepsze)
-     * 2. 🥈 Geoportal.gov.pl WFS (WERYFIKACJA - oficjalne polskie)
-     * 3. 🥉 HERE Maps API (COMMERCIAL BACKUP - płatne, precyzyjne)
-     * 4. 🛡️ Statyczne dane (ULTIMATE FALLBACK - zawsze działa)
+     * 2. 🛡️ Statyczne dane (ULTIMATE FALLBACK - zawsze działa)
+     *
+     * ❌ WYŁĄCZONE: HERE Maps (brak klucza API)
+     * ❌ WYŁĄCZONE: Geoportal.gov.pl WFS (GDDKiA niedostępne)
      */
 
     public void manualSync() {
@@ -46,7 +47,7 @@ public class PolishInfrastructureService {
 
     @Scheduled(fixedRate = 21600000) // Co 6 godzin (optymalna częstotliwość)
     public void syncInfrastructureData() {
-        log.info("🚀 Starting 3-tier infrastructure sync for Poland");
+        log.info("🚀 Starting 2-tier infrastructure sync for Poland (OSM + Static)");
 
         int syncedCount = 0;
 
@@ -55,17 +56,7 @@ public class PolishInfrastructureService {
             syncedCount += syncFromOpenStreetMap();
             log.info("✅ Level 1 (OSM): {} new objects", syncedCount);
 
-            // POZIOM 2: Geoportal.gov.pl (WERYFIKACJA)
-            syncedCount += syncFromGeoportal();
-            log.info("✅ Level 2 (Geoportal): total {} objects", syncedCount);
-
-            // POZIOM 3: HERE Maps (COMMERCIAL BACKUP)
-            if (!hereApiKey.isEmpty()) {
-                syncedCount += syncFromHereMaps();
-                log.info("✅ Level 3 (HERE): total {} objects", syncedCount);
-            }
-
-            // POZIOM 4: Statyczne dane (ULTIMATE FALLBACK)
+            // POZIOM 2: Statyczne dane (ULTIMATE FALLBACK)
             syncedCount += loadCriticalInfrastructure();
 
             log.info("🎉 Infrastructure sync completed: {} total objects in database",
@@ -86,15 +77,17 @@ public class PolishInfrastructureService {
         int newObjects = 0;
 
         try {
-            log.info("📡 Syncing from OpenStreetMap...");
+            log.info("📡 Syncing from OpenStreetMap Overpass API...");
 
             // Mosty z ograniczeniami w Polsce
             String bridgeQuery = """
-                [out:json][timeout:30];
+                [out:json][timeout:45];
                 (
                   way["bridge"="yes"]["highway"]["maxweight"](49,14,55,24);
                   way["bridge"="yes"]["highway"]["maxheight"](49,14,55,24);
                   rel["bridge"="yes"]["highway"]["maxweight"](49,14,55,24);
+                  way["bridge"="yes"]["maxweight"](49,14,55,24);
+                  way["bridge"="yes"]["maxheight"](49,14,55,24);
                 );
                 out center meta;
                 """;
@@ -103,10 +96,11 @@ public class PolishInfrastructureService {
 
             // Tunele z ograniczeniami wysokości
             String tunnelQuery = """
-                [out:json][timeout:30];
+                [out:json][timeout:45];
                 (
                   way["tunnel"="yes"]["highway"]["maxheight"](49,14,55,24);
                   way["tunnel"="yes"]["maxheight"](49,14,55,24);
+                  node["tunnel"="yes"]["maxheight"](49,14,55,24);
                 );
                 out center meta;
                 """;
@@ -115,79 +109,37 @@ public class PolishInfrastructureService {
 
             // Ograniczenia wysokości (wiadukty, przejazdy kolejowe)
             String heightQuery = """
-                [out:json][timeout:30];
+                [out:json][timeout:45];
                 (
                   way["highway"]["maxheight"](49,14,55,24);
                   node["barrier"="height_restrictor"](49,14,55,24);
                   way["railway"="rail"]["bridge"="yes"](49,14,55,24);
+                  node["highway"="traffic_signals"]["maxheight"](49,14,55,24);
+                  way["bridge:maxheight"](49,14,55,24);
                 );
                 out center meta;
                 """;
 
             newObjects += processOverpassQuery(heightQuery, "HEIGHT_RESTRICTION");
 
+            // Stacje ważenia i kontroli
+            String weightStationQuery = """
+                [out:json][timeout:30];
+                (
+                  node["amenity"="weighbridge"](49,14,55,24);
+                  node["barrier"="toll_booth"](49,14,55,24);
+                  way["amenity"="weighbridge"](49,14,55,24);
+                );
+                out center meta;
+                """;
+
+            newObjects += processOverpassQuery(weightStationQuery, "WEIGHT_STATION");
+
         } catch (Exception e) {
             log.warn("⚠️ OpenStreetMap sync failed: {}", e.getMessage());
         }
 
         return newObjects;
-    }
-
-    /**
-     * 🥈 POZIOM 2: Geoportal.gov.pl WFS
-     * Oficjalne polskie dane państwowe
-     */
-    private int syncFromGeoportal() {
-        try {
-            log.info("🇵🇱 Syncing from Geoportal.gov.pl...");
-
-            // WFS dla infrastruktury komunikacyjnej BDOT10k
-            String wfsUrl = "https://mapy.geoportal.gov.pl/wss/service/PZGIK/BDOT10k/WFS/Komunikacja?" +
-                    "service=WFS&version=2.0.0&request=GetFeature&" +
-                    "typeName=ms:PTWP_A&" + // mosty (punktowe obiekty transportu wodnego)
-                    "outputFormat=application/json&" +
-                    "bbox=14,49,24,55,EPSG:4326&" +
-                    "maxFeatures=500";
-
-            ResponseEntity<String> response = restTemplate.getForEntity(wfsUrl, String.class);
-
-            if (response.getStatusCode().is2xxSuccessful()) {
-                return processGeoportalData(response.getBody());
-            }
-
-        } catch (Exception e) {
-            log.warn("⚠️ Geoportal sync failed: {}", e.getMessage());
-        }
-
-        return 0;
-    }
-
-    /**
-     * 🥉 POZIOM 3: HERE Maps API
-     * Commercial backup dla high-precision data
-     */
-    private int syncFromHereMaps() {
-        try {
-            log.info("💼 Syncing from HERE Maps...");
-
-            // HERE Places API - infrastruktura z ograniczeniami
-            String hereUrl = "https://discover.search.hereapi.com/v1/discover?" +
-                    "in=countryCode:POL&" +
-                    "q=bridge,tunnel,height restriction&" +
-                    "limit=200&" +
-                    "apiKey=" + hereApiKey;
-
-            ResponseEntity<String> response = restTemplate.getForEntity(hereUrl, String.class);
-
-            if (response.getStatusCode().is2xxSuccessful()) {
-                return processHereData(response.getBody());
-            }
-
-        } catch (Exception e) {
-            log.warn("⚠️ HERE Maps sync failed: {}", e.getMessage());
-        }
-
-        return 0;
     }
 
     // ========================================
@@ -209,6 +161,8 @@ public class PolishInfrastructureService {
 
             if (response.getStatusCode().is2xxSuccessful()) {
                 return processOpenStreetMapData(response.getBody(), type);
+            } else {
+                log.warn("⚠️ Overpass API returned status: {}", response.getStatusCode());
             }
 
         } catch (Exception e) {
@@ -227,6 +181,13 @@ public class PolishInfrastructureService {
             Map<String, Object> data = mapper.readValue(jsonData, Map.class);
 
             List<Map<String, Object>> elements = (List<Map<String, Object>>) data.get("elements");
+
+            if (elements == null) {
+                log.warn("⚠️ No elements found in OSM response for type: {}", type);
+                return 0;
+            }
+
+            log.debug("📊 Processing {} OSM elements for type: {}", elements.size(), type);
 
             for (Map<String, Object> element : elements) {
                 if (processOSMElement(element, type)) {
@@ -256,10 +217,19 @@ public class PolishInfrastructureService {
                 lon = ((Number) element.get("lon")).doubleValue();
             }
 
-            if (lat == null || lon == null) return false;
+            if (lat == null || lon == null) {
+                return false;
+            }
+
+            // Sprawdź czy współrzędne są w granicach Polski
+            if (!isInPoland(lat, lon)) {
+                return false;
+            }
 
             Map<String, Object> tags = (Map<String, Object>) element.get("tags");
-            if (tags == null) return false;
+            if (tags == null) {
+                tags = Map.of(); // Empty map if no tags
+            }
 
             String externalId = "OSM_" + type + "_" + element.get("id");
 
@@ -285,7 +255,7 @@ public class PolishInfrastructureService {
                     .build();
 
             infrastructureRepository.save(infrastructure);
-            log.debug("✅ Added OSM {}: {}", type, infrastructure.getName());
+            log.debug("✅ Added OSM {}: {} at [{}, {}]", type, infrastructure.getName(), lat, lon);
             return true;
 
         } catch (Exception e) {
@@ -294,91 +264,8 @@ public class PolishInfrastructureService {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private int processGeoportalData(String jsonData) {
-        int newObjects = 0;
-
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            Map<String, Object> data = mapper.readValue(jsonData, Map.class);
-
-            List<Map<String, Object>> features = (List<Map<String, Object>>) data.get("features");
-            if (features == null) return 0;
-
-            for (Map<String, Object> feature : features) {
-                Map<String, Object> geometry = (Map<String, Object>) feature.get("geometry");
-                Map<String, Object> properties = (Map<String, Object>) feature.get("properties");
-
-                if (geometry != null && properties != null) {
-                    if (processGeoportalFeature(geometry, properties)) {
-                        newObjects++;
-                    }
-                }
-            }
-
-        } catch (Exception e) {
-            log.error("❌ Error processing Geoportal data", e);
-        }
-
-        return newObjects;
-    }
-
-    @SuppressWarnings("unchecked")
-    private boolean processGeoportalFeature(Map<String, Object> geometry, Map<String, Object> properties) {
-        try {
-            List<Double> coordinates = (List<Double>) geometry.get("coordinates");
-            if (coordinates == null || coordinates.size() < 2) return false;
-
-            String externalId = "GEOPORTAL_" + properties.get("id");
-            if (infrastructureRepository.findByExternalId(externalId) != null) {
-                return false;
-            }
-
-            Infrastructure infrastructure = Infrastructure.builder()
-                    .externalId(externalId)
-                    .name(properties.get("name") != null ? properties.get("name").toString() : "Most/Przeprawa")
-                    .type("BRIDGE")
-                    .latitude(coordinates.get(1))
-                    .longitude(coordinates.get(0))
-                    .description("Geoportal: " + (properties.get("opis") != null ? properties.get("opis") : "Oficjalne dane"))
-                    .isActive(true)
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .build();
-
-            infrastructureRepository.save(infrastructure);
-            log.debug("✅ Added Geoportal bridge: {}", infrastructure.getName());
-            return true;
-
-        } catch (Exception e) {
-            log.warn("⚠️ Error processing Geoportal feature: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private int processHereData(String jsonData) {
-        // Simplified HERE processing - focus on places with restrictions
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            Map<String, Object> data = mapper.readValue(jsonData, Map.class);
-
-            List<Map<String, Object>> items = (List<Map<String, Object>>) data.get("items");
-            if (items == null) return 0;
-
-            // HERE data processing would go here
-            // For now, return 0 as it requires specific HERE response format analysis
-            log.info("📊 HERE Maps returned {} items (processing not fully implemented)", items.size());
-
-        } catch (Exception e) {
-            log.error("❌ Error processing HERE data", e);
-        }
-
-        return 0;
-    }
-
     /**
-     * 🛡️ POZIOM 4: Krytyczna infrastruktura (ULTIMATE FALLBACK)
+     * 🛡️ POZIOM 2: Krytyczna infrastruktura (ULTIMATE FALLBACK)
      * Kluczowe obiekty które MUSZĄ być w systemie
      */
     private int loadCriticalInfrastructure() {
@@ -425,6 +312,19 @@ public class PolishInfrastructureService {
                         .isActive(true)
                         .build(),
 
+                Infrastructure.builder()
+                        .externalId("CRITICAL_BRIDGE_004")
+                        .name("Most Północny (A1 Gdańsk)")
+                        .type("BRIDGE")
+                        .latitude(54.3520)
+                        .longitude(18.6466)
+                        .roadNumber("A1")
+                        .maxWeightKg(44000)
+                        .maxAxleWeightKg(11000)
+                        .description("KRYTYCZNY: Główny dostęp do portu w Gdańsku")
+                        .isActive(true)
+                        .build(),
+
                 // === TUNELE Z OGRANICZENIAMI ===
                 Infrastructure.builder()
                         .externalId("CRITICAL_TUNNEL_001")
@@ -449,6 +349,19 @@ public class PolishInfrastructureService {
                         .maxHeightCm(450)
                         .maxWeightKg(40000)
                         .description("KRYTYCZNY: Tunel centrum Warszawy - 4.5m")
+                        .isActive(true)
+                        .build(),
+
+                Infrastructure.builder()
+                        .externalId("CRITICAL_TUNNEL_003")
+                        .name("Tunel Trasy Łazienkowskiej")
+                        .type("TUNNEL")
+                        .latitude(52.2170)
+                        .longitude(21.0356)
+                        .roadNumber("S79")
+                        .maxHeightCm(430)
+                        .maxWeightKg(40000)
+                        .description("KRYTYCZNY: Alternatywny tunel centrum - 4.3m")
                         .isActive(true)
                         .build(),
 
@@ -489,6 +402,30 @@ public class PolishInfrastructureService {
                         .isActive(true)
                         .build(),
 
+                Infrastructure.builder()
+                        .externalId("CRITICAL_HEIGHT_004")
+                        .name("Wiadukt PKP Kraków Główny")
+                        .type("HEIGHT_RESTRICTION")
+                        .latitude(50.0647)
+                        .longitude(19.9450)
+                        .roadNumber("DK4")
+                        .maxHeightCm(385)
+                        .description("NIEBEZPIECZNY: Ograniczenie centrum Krakowa - 3.85m")
+                        .isActive(true)
+                        .build(),
+
+                Infrastructure.builder()
+                        .externalId("CRITICAL_HEIGHT_005")
+                        .name("Wiadukt PKP Wrocław Główny")
+                        .type("HEIGHT_RESTRICTION")
+                        .latitude(51.1079)
+                        .longitude(17.0385)
+                        .roadNumber("DK8")
+                        .maxHeightCm(390)
+                        .description("NIEBEZPIECZNY: Ograniczenie centrum Wrocławia - 3.9m")
+                        .isActive(true)
+                        .build(),
+
                 // === STACJE KONTROLI ===
                 Infrastructure.builder()
                         .externalId("CRITICAL_WEIGHT_001")
@@ -510,6 +447,44 @@ public class PolishInfrastructureService {
                         .roadNumber("A4")
                         .description("KONTROLA: Automatyczne ważenie - korytarz południowy")
                         .isActive(true)
+                        .build(),
+
+                Infrastructure.builder()
+                        .externalId("CRITICAL_WEIGHT_003")
+                        .name("Stacja ważenia Gdańsk Port (A1)")
+                        .type("WEIGHT_STATION")
+                        .latitude(54.3720)
+                        .longitude(18.6966)
+                        .roadNumber("A1")
+                        .description("KONTROLA: Kontrola dostępu do portu")
+                        .isActive(true)
+                        .build(),
+
+                // === DODATKOWE KRYTYCZNE PUNKTY ===
+                Infrastructure.builder()
+                        .externalId("CRITICAL_BRIDGE_005")
+                        .name("Most im. Marszałka Józefa Piłsudskiego (Warszawa)")
+                        .type("BRIDGE")
+                        .latitude(52.2473)
+                        .longitude(21.0362)
+                        .roadNumber("S8")
+                        .maxWeightKg(40000)
+                        .maxAxleWeightKg(10000)
+                        .description("KRYTYCZNY: Główna przeprawa centrum Warszawy")
+                        .isActive(true)
+                        .build(),
+
+                Infrastructure.builder()
+                        .externalId("CRITICAL_BRIDGE_006")
+                        .name("Most Solidarności (Płock)")
+                        .type("BRIDGE")
+                        .latitude(52.5465)
+                        .longitude(19.7065)
+                        .roadNumber("DK60")
+                        .maxWeightKg(42000)
+                        .maxAxleWeightKg(10500)
+                        .description("KRYTYCZNY: Główna przeprawa przez Wisłę na północy")
+                        .isActive(true)
                         .build()
         );
 
@@ -524,6 +499,7 @@ public class PolishInfrastructureService {
             }
         }
 
+        log.info("🛡️ Loaded {} critical infrastructure objects", added);
         return added;
     }
 
@@ -531,8 +507,16 @@ public class PolishInfrastructureService {
     // UTILITY METHODS
     // ========================================
 
+    /**
+     * 🇵🇱 Sprawdź czy punkt jest w granicach Polski
+     */
+    private boolean isInPoland(double lat, double lon) {
+        // Uproszczone granice Polski
+        return lat >= 49.0 && lat <= 55.0 && lon >= 14.0 && lon <= 24.5;
+    }
+
     private String extractName(Map<String, Object> tags, String type) {
-        String[] nameKeys = {"name", "bridge:name", "official_name", "loc_name"};
+        String[] nameKeys = {"name", "bridge:name", "official_name", "loc_name", "name:pl"};
         for (String key : nameKeys) {
             if (tags.get(key) != null) {
                 return tags.get(key).toString();
@@ -540,11 +524,11 @@ public class PolishInfrastructureService {
         }
 
         String road = extractRoadNumber(tags);
-        return type.toLowerCase() + (road != null ? " (" + road + ")" : " unnamed");
+        return type.toLowerCase().replace("_", " ") + (road != null ? " (" + road + ")" : " unnamed");
     }
 
     private String extractRoadNumber(Map<String, Object> tags) {
-        String[] roadKeys = {"ref", "highway", "route"};
+        String[] roadKeys = {"ref", "highway", "route", "road:ref"};
         for (String key : roadKeys) {
             if (tags.get(key) != null) {
                 return tags.get(key).toString();
@@ -554,12 +538,20 @@ public class PolishInfrastructureService {
     }
 
     private Integer extractHeightLimit(Map<String, Object> tags) {
-        String[] heightKeys = {"maxheight", "maxheight:physical", "bridge:maxheight", "tunnel:maxheight"};
+        String[] heightKeys = {"maxheight", "maxheight:physical", "bridge:maxheight", "tunnel:maxheight", "barrier:height"};
         for (String key : heightKeys) {
             if (tags.get(key) != null) {
                 try {
                     String height = tags.get(key).toString().replaceAll("[^0-9.]", "");
-                    return (int)(Double.parseDouble(height) * 100); // convert to cm
+                    if (!height.isEmpty()) {
+                        double heightM = Double.parseDouble(height);
+                        // If value seems to be in meters, convert to cm
+                        if (heightM < 10) {
+                            return (int)(heightM * 100);
+                        } else {
+                            return (int)heightM; // Already in cm
+                        }
+                    }
                 } catch (NumberFormatException e) {
                     // ignore and try next
                 }
@@ -569,12 +561,16 @@ public class PolishInfrastructureService {
     }
 
     private Integer extractWeightLimit(Map<String, Object> tags) {
-        String[] weightKeys = {"maxweight", "maxweight:signed", "bridge:maxweight"};
+        String[] weightKeys = {"maxweight", "maxweight:signed", "bridge:maxweight", "maxweight:conditional"};
         for (String key : weightKeys) {
             if (tags.get(key) != null) {
                 try {
                     String weight = tags.get(key).toString().replaceAll("[^0-9.]", "");
-                    return (int)(Double.parseDouble(weight) * 1000); // convert to kg
+                    if (!weight.isEmpty()) {
+                        double weightT = Double.parseDouble(weight);
+                        // Convert tons to kg
+                        return (int)(weightT * 1000);
+                    }
                 } catch (NumberFormatException e) {
                     // ignore and try next
                 }
@@ -584,12 +580,16 @@ public class PolishInfrastructureService {
     }
 
     private Integer extractAxleWeightLimit(Map<String, Object> tags) {
-        String[] axleKeys = {"maxaxleload", "maxweight:axle"};
+        String[] axleKeys = {"maxaxleload", "maxweight:axle", "maxaxleweight"};
         for (String key : axleKeys) {
             if (tags.get(key) != null) {
                 try {
                     String weight = tags.get(key).toString().replaceAll("[^0-9.]", "");
-                    return (int)(Double.parseDouble(weight) * 1000); // convert to kg
+                    if (!weight.isEmpty()) {
+                        double weightT = Double.parseDouble(weight);
+                        // Convert tons to kg
+                        return (int)(weightT * 1000);
+                    }
                 } catch (NumberFormatException e) {
                     // ignore and try next
                 }
@@ -620,6 +620,11 @@ public class PolishInfrastructureService {
             desc.append("Barrier: ").append(tags.get("barrier"));
         }
 
-        return desc.length() > 0 ? desc.toString() : "No additional information";
+        if (tags.get("railway") != null) {
+            if (desc.length() > 0) desc.append(" | ");
+            desc.append("Railway: ").append(tags.get("railway"));
+        }
+
+        return desc.length() > 0 ? desc.toString() : "No additional information available";
     }
 }

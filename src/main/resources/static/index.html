@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚛 LogisticOps - Test Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDlcNrZHl85TDrudlFC2HbxFUtg4wQvtKc&libraries=geometry"></script>
+    <style>
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-online { background-color: #10B981; }
+        .status-offline { background-color: #EF4444; }
+        .status-degraded { background-color: #F59E0B; }
+
+        .alert-critical { border-left: 4px solid #EF4444; }
+        .alert-high { border-left: 4px solid #F59E0B; }
+        .alert-medium { border-left: 4px solid #3B82F6; }
+        .alert-low { border-left: 4px solid #10B981; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+<!-- Header -->
+<header class="bg-blue-900 text-white shadow-lg">
+    <div class="container mx-auto px-4 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <h1 class="text-2xl font-bold">🚛 LogisticOps</h1>
+                <span class="ml-3 text-blue-200">Test Dashboard</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div id="api-status" class="flex items-center">
+                    <span class="status-dot status-offline"></span>
+                    <span>Łączenie...</span>
+                </div>
+                <div id="websocket-status" class="flex items-center">
+                    <span class="status-dot status-offline"></span>
+                    <span>WebSocket</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="container mx-auto px-4 py-6">
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <button onclick="checkApiStatus()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+            🔍 Sprawdź API
+        </button>
+        <button onclick="syncInfrastructure()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+            🔄 Sync Infrastruktury
+        </button>
+        <button onclick="generateTestRoute()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors">
+            🗺️ Test Trasy
+        </button>
+        <button onclick="clearLogs()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
+            🗑️ Wyczyść Logi
+        </button>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Map -->
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <h2 class="text-xl font-semibold mb-4">🗺️ Mapa Polski</h2>
+                <div id="map" class="w-full h-96 bg-gray-200 rounded"></div>
+            </div>
+
+            <!-- Infrastructure List -->
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">🏗️ Infrastruktura</h2>
+                    <button onclick="loadInfrastructure()" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                        Odśwież
+                    </button>
+                </div>
+                <div id="infrastructure-list" class="space-y-2">
+                    <p class="text-gray-500">Kliknij "Odśwież" aby załadować infrastrukturę...</p>
+                </div>
+            </div>
+
+            <!-- Route Planning -->
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <h2 class="text-xl font-semibold mb-4">🛣️ Planowanie Trasy</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Start (Miasto)</label>
+                        <select id="start-city" class="w-full border rounded px-3 py-2">
+                            <option value="warszawa">Warszawa</option>
+                            <option value="krakow">Kraków</option>
+                            <option value="wroclaw">Wrocław</option>
+                            <option value="gdansk">Gdańsk</option>
+                            <option value="poznan">Poznań</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Cel (Miasto)</label>
+                        <select id="end-city" class="w-full border rounded px-3 py-2">
+                            <option value="krakow">Kraków</option>
+                            <option value="warszawa">Warszawa</option>
+                            <option value="wroclaw">Wrocław</option>
+                            <option value="gdansk">Gdańsk</option>
+                            <option value="poznan">Poznań</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="planRoute()" class="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg transition-colors">
+                        🚀 Zaplanuj Trasę
+                    </button>
+                </div>
+                <div id="route-results" class="mt-4"></div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="space-y-6">
+            <!-- API Status -->
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <h2 class="text-xl font-semibold mb-4">📊 Status API</h2>
+                <div id="api-details" class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span>Google Maps</span>
+                        <span id="google-status" class="status-dot status-offline"></span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span>TomTom</span>
+                        <span id="tomtom-status" class="status-dot status-offline"></span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span>System</span>
+                        <span id="system-status" class="status-dot status-offline"></span>
+                    </div>
+                </div>
+                <div id="capabilities" class="mt-4 text-sm text-gray-600"></div>
+            </div>
+
+            <!-- Live Alerts -->
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <h2 class="text-xl font-semibold mb-4">🚨 Alerty na żywo</h2>
+                <div id="alerts-list" class="space-y-2 max-h-64 overflow-y-auto">
+                    <p class="text-gray-500 text-sm">Brak alertów</p>
+                </div>
+            </div>
+
+            <!-- System Stats -->
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <h2 class="text-xl font-semibold mb-4">📈 Statystyki</h2>
+                <div id="stats" class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span>Infrastruktura:</span>
+                        <span id="infra-count">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Aktywne transporty:</span>
+                        <span id="transport-count">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Misje:</span>
+                        <span id="mission-count">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Alerty:</span>
+                        <span id="alert-count">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Log -->
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <h2 class="text-xl font-semibold mb-4">📝 Logi Aktywności</h2>
+                <div id="activity-log" class="space-y-1 max-h-64 overflow-y-auto text-sm font-mono">
+                    <p class="text-gray-500">System startuje...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Configuration
+    const API_BASE = 'http://localhost:8080/api';
+    const WS_URL = 'http://localhost:8080/ws';
+
+    // Global variables
+    let map;
+    let stompClient = null;
+    let markers = [];
+    let infrastructureData = [];
+
+    // City coordinates
+    const cities = {
+        warszawa: { lat: 52.2297, lng: 21.0122, name: "Warszawa" },
+        krakow: { lat: 50.0647, lng: 19.9450, name: "Kraków" },
+        wroclaw: { lat: 51.1079, lng: 17.0385, name: "Wrocław" },
+        gdansk: { lat: 54.3520, lng: 18.6466, name: "Gdańsk" },
+        poznan: { lat: 52.4064, lng: 16.9252, name: "Poznań" }
+    };
+
+    // Initialize everything
+    document.addEventListener('DOMContentLoaded', function() {
+        log('🚀 Initializing LogisticOps Dashboard...');
+        initMap();
+        connectWebSocket();
+        checkApiStatus();
+        loadInitialData();
+    });
+
+    // Map initialization
+    function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+            zoom: 6,
+            center: { lat: 52.0, lng: 19.0 },
+            styles: [
+                {
+                    featureType: 'poi',
+                    elementType: 'labels',
+                    stylers: [{ visibility: 'off' }]
+                }
+            ]
+        });
+        log('🗺️ Google Maps initialized');
+    }
+
+    // WebSocket connection
+    function connectWebSocket() {
+        try {
+            const socket = new SockJS(WS_URL);
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function(frame) {
+                log('🔗 WebSocket connected');
+                updateWebSocketStatus(true);
+
+                // Subscribe to topics
+                stompClient.subscribe('/topic/alerts/new', function(message) {
+                    const alert = JSON.parse(message.body);
+                    addAlert(alert);
+                });
+
+                stompClient.subscribe('/topic/infrastructure/alerts', function(message) {
+                    const data = JSON.parse(message.body);
+                    log('🏗️ Infrastructure alert: ' + data.message);
+                });
+
+                stompClient.subscribe('/topic/traffic/incidents', function(message) {
+                    const incident = JSON.parse(message.body);
+                    log('🚨 Traffic incident: ' + incident.description);
+                });
+
+            }, function(error) {
+                log('❌ WebSocket error: ' + error);
+                updateWebSocketStatus(false);
+            });
+        } catch (error) {
+            log('❌ WebSocket connection failed: ' + error.message);
+            updateWebSocketStatus(false);
+        }
+    }
+
+    // API Status Check
+    async function checkApiStatus() {
+        try {
+            log('🔍 Checking API status...');
+            const response = await fetch(`${API_BASE}/status`);
+            const status = await response.json();
+
+            updateApiStatus(status);
+
+            // Get detailed status
+            const detailResponse = await fetch(`${API_BASE}/status/detail`);
+            const details = await detailResponse.json();
+
+            updateApiDetails(details);
+            log('✅ API status check completed');
+
+        } catch (error) {
+            log('❌ API status check failed: ' + error.message);
+            updateApiStatus({ overall: 'CRITICAL' });
+        }
+    }
+
+    // Load initial data
+    async function loadInitialData() {
+        await loadInfrastructure();
+        await loadStats();
+    }
+
+    // Load infrastructure
+    async function loadInfrastructure() {
+        try {
+            log('🏗️ Loading infrastructure data...');
+            const response = await fetch(`${API_BASE}/infrastructure?size=50`);
+            const data = await response.json();
+
+            infrastructureData = data.content || [];
+            displayInfrastructure(infrastructureData);
+            updateMapMarkers(infrastructureData);
+
+            log(`✅ Loaded ${infrastructureData.length} infrastructure objects`);
+
+        } catch (error) {
+            log('❌ Failed to load infrastructure: ' + error.message);
+            document.getElementById('infrastructure-list').innerHTML =
+                '<p class="text-red-500">Błąd ładowania infrastruktury</p>';
+        }
+    }
+
+    // Sync infrastructure
+    async function syncInfrastructure() {
+        try {
+            log('🔄 Starting infrastructure sync...');
+            const response = await fetch(`${API_BASE}/infrastructure/sync`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                log('✅ Infrastructure sync started successfully');
+                setTimeout(() => {
+                    loadInfrastructure();
+                }, 2000);
+            } else {
+                log('❌ Infrastructure sync failed');
+            }
+
+        } catch (error) {
+            log('❌ Infrastructure sync error: ' + error.message);
+        }
+    }
+
+    // Generate test route
+    function generateTestRoute() {
+        const startCity = document.getElementById('start-city').value;
+        const endCity = document.getElementById('end-city').value;
+
+        if (startCity === endCity) {
+            log('⚠️ Start and end cities must be different');
+            return;
+        }
+
+        planRoute();
+    }
+
+    // Plan route
+    async function planRoute() {
+        const startCity = document.getElementById('start-city').value;
+        const endCity = document.getElementById('end-city').value;
+
+        const start = cities[startCity];
+        const end = cities[endCity];
+
+        try {
+            log(`🛣️ Planning route: ${start.name} → ${end.name}`);
+
+            const routeRequest = {
+                startLatitude: start.lat,
+                startLongitude: start.lng,
+                startAddress: start.name,
+                endLatitude: end.lat,
+                endLongitude: end.lng,
+                endAddress: end.name,
+                missionId: 1,
+                vehicleIds: [1],
+                plannedDeparture: new Date().toISOString()
+            };
+
+            const response = await fetch(`${API_BASE}/intelligent-routes/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(routeRequest)
+            });
+
+            if (response.ok) {
+                const routes = await response.json();
+                displayRoutes(routes);
+                drawRouteOnMap(start, end);
+                log(`✅ Generated ${routes.length} route proposals`);
+            } else {
+                log('❌ Route planning failed');
+            }
+
+        } catch (error) {
+            log('❌ Route planning error: ' + error.message);
+
+            // Fallback: show direct route
+            displayRoutes([{
+                id: 'fallback',
+                routeType: 'DIRECT',
+                totalDistanceKm: calculateDistance(start.lat, start.lng, end.lat, end.lng),
+                estimatedTimeMinutes: 120,
+                summary: 'Fallback direct route'
+            }]);
+            drawRouteOnMap(start, end);
+        }
+    }
+
+    // Load stats
+    async function loadStats() {
+        try {
+            const dashboardResponse = await fetch(`${API_BASE}/dashboard`);
+            const dashboard = await dashboardResponse.json();
+
+            document.getElementById('infra-count').textContent = infrastructureData.length;
+            document.getElementById('transport-count').textContent = dashboard.activeTransports?.length || 0;
+            document.getElementById('mission-count').textContent = dashboard.activeMissions?.length || 0;
+            document.getElementById('alert-count').textContent = dashboard.recentAlerts?.length || 0;
+
+        } catch (error) {
+            log('❌ Failed to load stats: ' + error.message);
+        }
+    }
+
+    // Display functions
+    function displayInfrastructure(infrastructure) {
+        const container = document.getElementById('infrastructure-list');
+
+        if (infrastructure.length === 0) {
+            container.innerHTML = '<p class="text-gray-500">Brak danych infrastruktury</p>';
+            return;
+        }
+
+        container.innerHTML = infrastructure.slice(0, 10).map(item => `
+                <div class="border-l-4 border-blue-500 pl-3 py-2 bg-gray-50 rounded">
+                    <div class="font-medium">${item.name}</div>
+                    <div class="text-sm text-gray-600">
+                        ${item.type} • ${item.roadNumber || 'N/A'}
+                        ${item.maxHeightCm ? `• Max: ${item.maxHeightCm}cm` : ''}
+                        ${item.maxWeightKg ? `• ${item.maxWeightKg}kg` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+        if (infrastructure.length > 10) {
+            container.innerHTML += `<p class="text-sm text-gray-500 mt-2">... i ${infrastructure.length - 10} więcej</p>`;
+        }
+    }
+
+    function displayRoutes(routes) {
+        const container = document.getElementById('route-results');
+
+        container.innerHTML = routes.map(route => `
+                <div class="border rounded-lg p-3 bg-gray-50 mt-2">
+                    <div class="font-medium text-green-600">${route.routeType} Route</div>
+                    <div class="text-sm text-gray-600">
+                        📏 ${route.totalDistanceKm?.toFixed(1) || 'N/A'} km •
+                        ⏱️ ${route.estimatedTimeMinutes?.toFixed(0) || 'N/A'} min
+                        ${route.obstacleCount ? `• ⚠️ ${route.obstacleCount} obstacles` : ''}
+                    </div>
+                    ${route.summary ? `<div class="text-xs text-gray-500 mt-1">${route.summary}</div>` : ''}
+                </div>
+            `).join('');
+    }
+
+    function addAlert(alert) {
+        const container = document.getElementById('alerts-list');
+        const alertClass = `alert-${alert.level.toLowerCase()}`;
+
+        const alertElement = document.createElement('div');
+        alertElement.className = `${alertClass} bg-white p-2 rounded text-sm`;
+        alertElement.innerHTML = `
+                <div class="font-medium">${alert.level}</div>
+                <div class="text-gray-600">${alert.message}</div>
+                <div class="text-xs text-gray-400">${new Date().toLocaleTimeString()}</div>
+            `;
+
+        container.insertBefore(alertElement, container.firstChild);
+
+        // Keep only last 10 alerts
+        while (container.children.length > 10) {
+            container.removeChild(container.lastChild);
+        }
+    }
+
+    // Map functions
+    function updateMapMarkers(infrastructure) {
+        // Clear existing markers
+        markers.forEach(marker => marker.setMap(null));
+        markers = [];
+
+        // Add infrastructure markers
+        infrastructure.forEach(item => {
+            if (item.latitude && item.longitude) {
+                const marker = new google.maps.Marker({
+                    position: { lat: item.latitude, lng: item.longitude },
+                    map: map,
+                    title: item.name,
+                    icon: {
+                        url: getMarkerIcon(item.type),
+                        scaledSize: new google.maps.Size(20, 20)
+                    }
+                });
+
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `
+                            <div class="p-2">
+                                <h3 class="font-bold">${item.name}</h3>
+                                <p class="text-sm">Type: ${item.type}</p>
+                                ${item.roadNumber ? `<p class="text-sm">Road: ${item.roadNumber}</p>` : ''}
+                                ${item.maxHeightCm ? `<p class="text-sm">Max Height: ${item.maxHeightCm}cm</p>` : ''}
+                                ${item.maxWeightKg ? `<p class="text-sm">Max Weight: ${item.maxWeightKg}kg</p>` : ''}
+                            </div>
+                        `
+                });
+
+                marker.addListener('click', () => {
+                    infoWindow.open(map, marker);
+                });
+
+                markers.push(marker);
+            }
+        });
+    }
+
+    function drawRouteOnMap(start, end) {
+        const directionsService = new google.maps.DirectionsService();
+        const directionsRenderer = new google.maps.DirectionsRenderer({
+            strokeColor: '#3B82F6',
+            strokeWeight: 4
+        });
+
+        directionsRenderer.setMap(map);
+
+        directionsService.route({
+            origin: new google.maps.LatLng(start.lat, start.lng),
+            destination: new google.maps.LatLng(end.lat, end.lng),
+            travelMode: google.maps.TravelMode.DRIVING
+        }, (result, status) => {
+            if (status === 'OK') {
+                directionsRenderer.setDirections(result);
+            } else {
+                log('❌ Directions request failed: ' + status);
+            }
+        });
+    }
+
+    function getMarkerIcon(type) {
+        const icons = {
+            'BRIDGE': 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+            'TUNNEL': 'https://maps.google.com/mapfiles/ms/icons/purple-dot.png',
+            'HEIGHT_RESTRICTION': 'https://maps.google.com/mapfiles/ms/icons/yellow-dot.png',
+            'WEIGHT_STATION': 'https://maps.google.com/mapfiles/ms/icons/green-dot.png'
+        };
+        return icons[type] || 'https://maps.google.com/mapfiles/ms/icons/red-dot.png';
+    }
+
+    // Status updates
+    function updateApiStatus(status) {
+        const statusElement = document.getElementById('api-status');
+        const dot = statusElement.querySelector('.status-dot');
+
+        dot.className = 'status-dot ' +
+            (status.overall === 'HEALTHY' ? 'status-online' :
+                status.overall === 'DEGRADED' ? 'status-degraded' : 'status-offline');
+
+        statusElement.querySelector('span:last-child').textContent = status.overall || 'UNKNOWN';
+    }
+
+    function updateApiDetails(details) {
+        if (details.apis) {
+            const googleStatus = details.apis.googleMaps?.status === 'WORKING';
+            const tomtomStatus = details.apis.tomTom?.status === 'WORKING';
+
+            document.getElementById('google-status').className =
+                'status-dot ' + (googleStatus ? 'status-online' : 'status-offline');
+            document.getElementById('tomtom-status').className =
+                'status-dot ' + (tomtomStatus ? 'status-online' : 'status-offline');
+            document.getElementById('system-status').className =
+                'status-dot ' + (googleStatus && tomtomStatus ? 'status-online' : 'status-degraded');
+        }
+    }
+
+    function updateWebSocketStatus(connected) {
+        const statusElement = document.getElementById('websocket-status');
+        const dot = statusElement.querySelector('.status-dot');
+
+        dot.className = 'status-dot ' + (connected ? 'status-online' : 'status-offline');
+        statusElement.querySelector('span:last-child').textContent =
+            connected ? 'Connected' : 'Disconnected';
+    }
+
+    // Utility functions
+    function log(message) {
+        const logContainer = document.getElementById('activity-log');
+        const timestamp = new Date().toLocaleTimeString();
+
+        const logEntry = document.createElement('p');
+        logEntry.className = 'text-xs';
+        logEntry.innerHTML = `<span class="text-gray-400">${timestamp}</span> ${message}`;
+
+        logContainer.insertBefore(logEntry, logContainer.firstChild);
+
+        // Keep only last 50 log entries
+        while (logContainer.children.length > 50) {
+            logContainer.removeChild(logContainer.lastChild);
+        }
+
+        console.log(`[${timestamp}] ${message}`);
+    }
+
+    function clearLogs() {
+        document.getElementById('activity-log').innerHTML = '';
+        log('📝 Logs cleared');
+    }
+
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371; // km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // Auto-refresh functionality
+    setInterval(() => {
+        if (stompClient && stompClient.connected) {
+            loadStats();
+        }
+    }, 30000); // Every 30 seconds
+</script>
+</body>
+</html>

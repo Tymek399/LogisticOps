@@ -35,27 +35,27 @@ management:
         include: health,info,metrics
 
 # ===================================
-# ? STRATEGIA 3-POZIOMOWA API
+# 🎯 STRATEGIA 2-POZIOMOWA API (TYLKO DOSTĘPNE)
 # ===================================
 
 api:
-  # ? POZIOM 1: Google Maps (g?�wne mapowanie tras)
+  # 🗺️ POZIOM 1: Google Maps (główne mapowanie tras)
   googlemaps:
-    key: ${GOOGLE_MAPS_API_KEY:YOUR_GOOGLE_MAPS_API_KEY}
+    key: AIzaSyDlcNrZHl85TDrudlFC2HbxFUtg4wQvtKc
     url: https://maps.googleapis.com/maps/api
 
-  # ? POZIOM 1: TomTom (ruch + infrastruktura)
+  # 🚛 POZIOM 1: TomTom (ruch + infrastruktura)
   tomtom:
-    key: ${TOMTOM_API_KEY:w6LQqpqeOt0ITFzFHbeOzUjOqnN8alPu}
+    key: w6LQqpqeOt0ITFzFHbeOzUjOqnN8alPu
     url: https://api.tomtom.com
 
-  # ? POZIOM 3: HERE Maps (commercial backup)
+  # ❌ HERE Maps WYŁĄCZONE (brak klucza)
   here:
-    api-key: ${HERE_API_KEY:}
+    api-key: ""
     base-url: https://discover.search.hereapi.com/v1
 
 # ===================================
-# ?? KONFIGURACJA APLIKACJI
+# ⚙️ KONFIGURACJA APLIKACJI
 # ===================================
 
 app:
@@ -75,15 +75,28 @@ app:
     allowed-headers: "*"
     allow-credentials: true
 
-  # Synchronizacja infrastruktury
+  # Synchronizacja infrastruktury (TYLKO DOSTĘPNE ŹRÓDŁA)
   sync:
     infrastructure:
       enabled: true
       interval-hours: 6
       sources:
-        openstreetmap: true    # ? G?�wne ?r�d?o
-        geoportal: true        # ? Weryfikacja
-        here: false            # ? Tylko je?li masz klucz
+        openstreetmap: true    # ✅ Główne źródło
+        tomtom: true          # ✅ Monitoring ruchu
+        geoportal: false      # ❌ GDDKiA niedostępne
+        here: false           # ❌ Brak klucza API
+
+  # Monitoring ruchu TomTom
+  traffic:
+    tomtom:
+      enabled: true
+      check-interval-minutes: 5
+      incident-types:
+        - ROAD_CLOSED
+        - BRIDGE_CLOSED
+        - CONSTRUCTION
+        - ACCIDENT
+        - TRAFFIC_JAM
 
   # Limity systemu
   limits:
@@ -96,15 +109,17 @@ app:
     default-vehicle-speed-kmh: 60
     safety-margin-percent: 15
     max-detour-percent: 50
+    fallback-strategy: "static-data"  # Gdy API niedostępne
+    prefer-tomtom-traffic: true       # Priorytet dla TomTom traffic
 
-  # Parametry ogranicze? (dla transport�w wojskowych)
+  # Parametry ograniczeń (dla transportów wojskowych)
   restrictions:
-    critical-height-cm: 400     # Poni?ej tej wysoko?ci = ALERT
-    critical-weight-kg: 45000   # Powy?ej tej wagi = sprawd? mosty
-    critical-axle-kg: 12000     # Powy?ej tego = sprawd? ograniczenia osi
+    critical-height-cm: 400     # Poniżej tej wysokości = ALERT
+    critical-weight-kg: 45000   # Powyżej tej wagi = sprawdź mosty
+    critical-axle-kg: 12000     # Powyżej tego = sprawdź ograniczenia osi
 
 # ===================================
-# ? WEBSOCKET REAL-TIME
+# 📡 WEBSOCKET REAL-TIME
 # ===================================
 
 websocket:
@@ -112,6 +127,7 @@ websocket:
     transport-tracking: "/topic/transport/{transportId}/tracking"
     infrastructure-alerts: "/topic/infrastructure/alerts"
     route-updates: "/topic/routes/updates"
+    traffic-incidents: "/topic/traffic/incidents"
 
   intervals:
     position-update-ms: 5000
@@ -119,7 +135,7 @@ websocket:
     infrastructure-sync-ms: 300000
 
 # ===================================
-# ? PROFILE DEVELOPMENT
+# 🔧 PROFILE DEVELOPMENT
 # ===================================
 
 ---
@@ -128,18 +144,10 @@ spring:
     activate:
       on-profile: development
 
-api:
-  googlemaps:
-    key: "DEVELOPMENT_KEY"
-  tomtom:
-    key: "DEVELOPMENT_KEY"
-  here:
-    api-key: ""
-
 app:
   sync:
     infrastructure:
-      interval-hours: 1  # Cz?stsze w dev
+      interval-hours: 1  # Częstsze w dev
 
 logging:
   level:
@@ -154,14 +162,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate  # W produkcji tylko walidacja
-
-api:
-  googlemaps:
-    key: ${GOOGLE_MAPS_API_KEY}
-  tomtom:
-    key: ${TOMTOM_API_KEY}
-  here:
-    api-key: ${HERE_API_KEY}
 
 app:
   sync:
